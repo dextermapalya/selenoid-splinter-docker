@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  selenoid:
+    image: aerokube/selenoid:latest
+    container_name: selenoid
+    ports:
+      - "4444:4444"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./selenoid/config:/etc/selenoid
+      - ./selenoid/logs:/opt/selenoid/logs
+      - ./selenoid/downloads:/opt/selenoid/downloads
+    environment:
+      - SCREEN_WIDTH=1920
+      - SCREEN_HEIGHT=1080
+    command: ["-conf", "/etc/selenoid/browsers.json", "-log-output-file", "/opt/selenoid/logs/selenoid.log"]
+    networks:
+      - selenoid-network
+
+  selenoid-ui:
+    image: aerokube/selenoid-ui:latest
+    container_name: selenoid-ui
+    ports:
+      - "8080:8080"
+    environment:
+      - SELENOID_ADDR=selenoid:4444
+    depends_on:
+      - selenoid
+    networks:
+      - selenoid-network
+
+  test-runner:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: test-runner
+    depends_on:
+      - selenoid
+    environment:
+      - SELENOID_URL=http://selenoid:4444
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./tests:/app/tests
+      - ./reports:/app/reports
+    networks:
+      - selenoid-network
+    command: python tests/test_google.py
+
+networks:
+  selenoid-network:
+    driver: bridge
